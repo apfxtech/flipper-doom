@@ -552,25 +552,9 @@ inline
 #endif
 fixed_t CONSTFUNC FixedMul(fixed_t a, fixed_t b)
 {
-	uint16_t alw = a;
-	 int16_t ahw = a >> FRACBITS;
-	uint16_t blw = b;
-	 int16_t bhw = b >> FRACBITS;
-
-	if (bhw == 0) {
-		uint32_t ll = (uint32_t) alw * blw;
-		 int32_t hl = ( int32_t) ahw * blw;
-		return (ll >> FRACBITS) + hl;
-	} else if (alw == 0) {
-		//return ahw * b;
-		 int32_t hl = ( int32_t) ahw * blw;
-		 int32_t hh = ( int32_t) ahw * bhw;
-		return hl + (hh << FRACBITS);
-	} else {
-		uint32_t ll = (uint32_t) alw * blw;
-		 int32_t hl = ( int32_t) ahw * blw;
-		return (a * bhw) + (ll >> FRACBITS) + hl;
-	}
+	// flipper-doom: one SMULL on the Cortex-M4 instead of the 8088's 16-bit
+	// pieces; the same bits (16..47 of the 64-bit product)
+	return (fixed_t)(((int64_t)a * b) >> FRACBITS);
 }
 #endif
 
@@ -578,14 +562,7 @@ fixed_t CONSTFUNC FixedMul(fixed_t a, fixed_t b)
 #if defined C_ONLY
 inline static fixed_t CONSTFUNC FixedMul3232(fixed_t a, fixed_t b)
 {
-	uint16_t alw = a;
-	 int16_t ahw = a >> FRACBITS;
-	uint16_t blw = b;
-	 int16_t bhw = b >> FRACBITS;
-
-	uint32_t ll = (uint32_t) alw * blw;
-	 int32_t hl = ( int32_t) ahw * blw;
-	return (a * bhw) + (ll >> FRACBITS) + hl;
+	return (fixed_t)(((int64_t)a * b) >> FRACBITS); // flipper-doom: see FixedMul
 }
 #else
 fixed_t FixedMul3232(fixed_t a, fixed_t b);
@@ -620,14 +597,12 @@ inline
 #endif
 fixed_t CONSTFUNC FixedMul3216(fixed_t a, uint16_t blw)
 {
+#if defined C_ONLY
+	return (fixed_t)(((int64_t)a * blw) >> FRACBITS); // flipper-doom: see FixedMul
+#else
 	uint16_t alw = a;
 	 int16_t ahw = a >> FRACBITS;
 
-#if defined C_ONLY
-	uint32_t ll = (uint32_t) alw * blw;
-	 int32_t hl = ( int32_t) ahw * blw;
-	return (ll >> FRACBITS) + hl;
-#else
 	fixed_t result;
 	asm
 	(
