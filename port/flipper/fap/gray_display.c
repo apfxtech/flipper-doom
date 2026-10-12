@@ -139,6 +139,23 @@ __attribute__((optimize("O2"))) static void render_subframe(GrayDisplay* d, Subf
 }
 
 
+// The canvas buffer to the ST7567 page by page, as u8g2's st756x driver sends
+// it (column 0, page address, 128 data bytes), but the data goes by DMA: the
+// thread sleeps through the transfer and the CPU is left to the game.
+static void lcd_send_dma(uint8_t* buf)
+{
+	for(uint8_t page = 0; page < 8; page++) {
+		const uint8_t cmd[] = {0x10, 0x00, 0xb0 | page};
+		furi_hal_spi_acquire(&furi_hal_spi_bus_handle_display);
+		furi_hal_gpio_write(&gpio_display_di, false);
+		furi_hal_spi_bus_tx(&furi_hal_spi_bus_handle_display, cmd, sizeof(cmd), 100);
+		furi_hal_gpio_write(&gpio_display_di, true);
+		furi_hal_spi_bus_trx_dma(&furi_hal_spi_bus_handle_display, buf + page * 128, NULL, 128, 100);
+		furi_hal_spi_release(&furi_hal_spi_bus_handle_display);
+	}
+}
+
+
 static int32_t display_thread(void* context)
 {
 	GrayDisplay* d = context;
@@ -177,7 +194,10 @@ static int32_t display_thread(void* context)
 			// a commit that starts late or takes long (SD holding the shared SPI
 			// bus) shows the subframe at the wrong time
 			uint32_t t1 = DWT->CYCCNT;
-			canvas_commit(d->canvas);
+			if(d->fast_layout)
+				lcd_send_dma(canvas_get_buffer(d->canvas));
+			else
+				canvas_commit(d->canvas);
 			uint32_t took = DWT->CYCCNT - t1;
 			commit += took;
 			int32_t late_us = (int32_t)(t1 + took - next) / (int32_t)cpu_us - (int32_t)d->commit_us;
