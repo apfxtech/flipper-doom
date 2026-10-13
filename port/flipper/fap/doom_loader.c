@@ -46,6 +46,7 @@
 #define HEAP_RESERVE    (6 * 1024) // stays free for the firmware while the engine runs
 #define RUN_LOG      EXT_PATH("apps_data/flipper_doom/last_run.txt")
 #define MAX_ALLOCS   8
+#define FPS_CAP      25 // frames a second at most: the time left over is the other threads'
 
 int __wrap_vsnprintf(char* str, size_t size, const char* format, va_list args);
 
@@ -70,6 +71,7 @@ typedef struct
 	uint32_t wad_reads;
 	uint32_t wad_cycles; // time spent reading the WAD since the last heartbeat
 	uint32_t beat_tick, beat_reads; // at the last heartbeat
+	uint32_t frame_tick; // when the engine handed over its last frame (FPS_CAP)
 
 	Storage* storage;
 	File* wad;
@@ -319,6 +321,12 @@ static void api_frame_unlock(void)
 		app->beat_tick = now;
 		app->beat_reads = app->wad_reads;
 	}
+
+	// at most FPS_CAP frames a second: the engine sleeps the rest of the frame
+	// away, and the input, storage and sound threads get their turn
+	const uint32_t period = furi_ms_to_ticks(1000 / FPS_CAP), spent = furi_get_tick() - app->frame_tick;
+	if(spent < period) furi_delay_tick(period - spent);
+	app->frame_tick = furi_get_tick();
 }
 
 static void api_sound(uint32_t pos, uint16_t length, uint8_t volume)
@@ -484,6 +492,7 @@ static int run_engine(DoomApp* a, const fz_image_header_t* hdr, uint8_t map, uin
 	a->wad_cycles = 0;
 	a->beat_reads = 0;
 	a->beat_tick = furi_get_tick();
+	a->frame_tick = a->beat_tick;
 	gray_display_lateness_reset(a->display);
 	const uint32_t started = furi_get_tick();
 	int result = call_engine(&api, hdr->entry, ram + hdr->got_offset);
