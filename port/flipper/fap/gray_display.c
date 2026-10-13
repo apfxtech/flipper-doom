@@ -139,9 +139,11 @@ __attribute__((optimize("O2"))) static void render_subframe(GrayDisplay* d, Subf
 }
 
 
+#if defined FZ_LCD_DMA
 // The canvas buffer to the ST7567 page by page, as u8g2's st756x driver sends
 // it (column 0, page address, 128 data bytes), but the data goes by DMA: the
 // thread sleeps through the transfer and the CPU is left to the game.
+// FZ_LCD_DMA (cdefines in application.fam) turns it on.
 static void lcd_send_dma(uint8_t* buf)
 {
 	for(uint8_t page = 0; page < 8; page++) {
@@ -154,6 +156,7 @@ static void lcd_send_dma(uint8_t* buf)
 		furi_hal_spi_release(&furi_hal_spi_bus_handle_display);
 	}
 }
+#endif
 
 
 static int32_t display_thread(void* context)
@@ -194,9 +197,11 @@ static int32_t display_thread(void* context)
 			// a commit that starts late or takes long (SD holding the shared SPI
 			// bus) shows the subframe at the wrong time
 			uint32_t t1 = DWT->CYCCNT;
+#if defined FZ_LCD_DMA
 			if(d->fast_layout)
 				lcd_send_dma(canvas_get_buffer(d->canvas));
 			else
+#endif
 				canvas_commit(d->canvas);
 			uint32_t took = DWT->CYCCNT - t1;
 			commit += took;

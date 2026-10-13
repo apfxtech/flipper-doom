@@ -8,4 +8,5 @@ App(
     fap_icon="icon.png", # 10x10, the D of the logo
     fap_file_assets="files",
     sources=["doom_loader.c", "flash_install.c", "gray_display.c", "calibration.c", "sound.c", "ui.c", "doom_menu.c"],
+    cdefines=["FZ_LCD_DMA"], # subframes to the LCD by DMA, see gray_display.c
 )
